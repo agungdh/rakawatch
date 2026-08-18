@@ -5,11 +5,15 @@ namespace Rakawatch;
 
 internal static class AdminGuard
 {
+    private const int SW_SHOW = 5;
     private const uint MB_OK = 0x00000000;
     private const uint MB_ICONERROR = 0x00000010;
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern int MessageBoxW(IntPtr hWnd, string lpText, string lpCaption, uint uType);
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr ShellExecuteW(IntPtr hwnd, string lpOperation, string lpFile, string lpParameters, string lpDirectory, int nShowCmd);
 
     public static bool IsAdministrator()
     {
@@ -17,14 +21,30 @@ internal static class AdminGuard
         return new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
     }
 
-    public static void NotifyAndExit()
+    public static void EnsureAdministrator()
     {
-        MessageBoxW(
-            IntPtr.Zero,
-            "Rakawatch membutuhkan hak Administrator untuk membaca sensor hardware.\nJalankan ulang aplikasi sebagai Administrator.",
-            "Rakawatch - Perlu Administrator",
-            MB_OK | MB_ICONERROR);
+        if (IsAdministrator())
+            return;
 
-        Environment.Exit(1);
+        var args = Environment.GetCommandLineArgs();
+        var parameters = args.Length > 1
+            ? string.Join(" ", args.Skip(1).Select(Quote))
+            : string.Empty;
+
+        var result = ShellExecuteW(IntPtr.Zero, "runas", args[0], parameters, Environment.CurrentDirectory, SW_SHOW);
+
+        if (result.ToInt64() <= 32)
+        {
+            MessageBoxW(
+                IntPtr.Zero,
+                "Rakawatch membutuhkan hak Administrator untuk membaca sensor hardware.\nIzinkan permintaan UAC untuk melanjutkan.",
+                "Rakawatch - Perlu Administrator",
+                MB_OK | MB_ICONERROR);
+        }
+
+        Environment.Exit(result.ToInt64() <= 32 ? 1 : 0);
     }
+
+    private static string Quote(string value) =>
+        value.Contains(' ') ? $"\"{value}\"" : value;
 }

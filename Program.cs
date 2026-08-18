@@ -8,7 +8,7 @@ using System.Text.Json.Serialization;
 
 if (!AdminGuard.IsAdministrator())
 {
-    AdminGuard.NotifyAndExit();
+    AdminGuard.EnsureAdministrator();
     return;
 }
 
