@@ -26,6 +26,7 @@ builder.Services.AddCors(options =>
         policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
 
 builder.Services.AddSingleton<HardwareMonitorService>();
+builder.Services.AddHostedService<HardwareSamplerService>();
 
 var app = builder.Build();
 

@@ -7,6 +7,7 @@ public sealed class HardwareMonitorService : IDisposable
 {
     private readonly Computer _computer;
     private readonly object _lock = new();
+    private IReadOnlyList<HardwareDto> _snapshot = Array.Empty<HardwareDto>();
 
     public HardwareMonitorService()
     {
@@ -26,28 +27,20 @@ public sealed class HardwareMonitorService : IDisposable
         _computer.Open();
     }
 
-    public IReadOnlyList<HardwareDto> GetSnapshot()
+    public void Update()
     {
         lock (_lock)
-            return UpdateAll().Select(Map).ToList();
+            _snapshot = UpdateAll().Select(Map).ToList();
     }
 
-    public IReadOnlyList<HardwareDto> GetByType(HardwareType type)
-    {
-        lock (_lock)
-            return UpdateAll()
-                .Where(h => h.HardwareType == type)
-                .Select(Map)
-                .ToList();
-    }
+    public IReadOnlyList<HardwareDto> GetSnapshot() => _snapshot;
 
-    public HardwareDto? GetByName(HardwareType type, string name)
-    {
-        lock (_lock)
-            return UpdateAll()
-                .FirstOrDefault(h => h.HardwareType == type && h.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
-                is { } hardware ? Map(hardware) : null;
-    }
+    public IReadOnlyList<HardwareDto> GetByType(HardwareType type) =>
+        _snapshot.Where(h => h.Type == type.ToString()).ToList();
+
+    public HardwareDto? GetByName(HardwareType type, string name) =>
+        _snapshot.FirstOrDefault(h =>
+            h.Type == type.ToString() && h.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 
     private IEnumerable<IHardware> UpdateAll()
     {
