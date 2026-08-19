@@ -6,10 +6,13 @@ Web server untuk serve data telemetry hardware live dari **LibreHardwareMonitor*
 
 - Serve snapshot lengkap semua sensor hardware (CPU, GPU, RAM, motherboard, storage, network, fan, dan lainnya) sebagai JSON.
 - Endpoint full snapshot + per kategori + detail per hardware.
-- Data dibaca fresh setiap request (bukan data cache).
+- Data di-sample secara periodik oleh background service (default tiap 1 detik). Snapshot diserve dari hasil sampling, sehingga aman untuk request paralel (LibreHardwareMonitor tidak thread-safe).
+- Optional auth token: jika `AUTH_TOKEN` di-set, semua endpoint wajib menyertakan `Authorization: Bearer <token>`.
+- OpenAPI spec otomatis di `/openapi/v1.json`.
 - Enforce hak Administrator: jika tidak dijalankan sebagai admin, muncul notifikasi dan aplikasi langsung keluar.
 - CORS enabled (bisa dikonsumsi frontend/browser).
-- Port dan host bisa dikonfigurasi via environment variable.
+- HTTP request logging aktif.
+- Host, port, dan interval sampling bisa dikonfigurasi via environment variable.
 
 ## Requirements
 
@@ -31,6 +34,8 @@ Aplikasi akan listen di `http://localhost:8080`.
 |---|---|---|
 | `HOST` | `localhost` | Host yang di-bind |
 | `PORT` | `8080` | Port HTTP |
+| `SAMPLE_INTERVAL_MS` | `1000` | Interval sampling hardware dalam milidetik (nilai < 1 dianggap 1000) |
+| `AUTH_TOKEN` | *(kosong)* | Jika diisi, semua endpoint butuh header `Authorization: Bearer <token>` |
 
 ## Endpoint
 
@@ -40,6 +45,7 @@ Aplikasi akan listen di `http://localhost:8080`.
 | `GET` | `/api/hardware` | Full snapshot semua hardware + sensor |
 | `GET` | `/api/hardware/{type}` | Snapshot per kategori |
 | `GET` | `/api/hardware/{type}/{name}` | Detail satu hardware |
+| `GET` | `/openapi/v1.json` | OpenAPI spec |
 
 ### Kategori `{type}`
 
@@ -54,23 +60,26 @@ Aplikasi akan listen di `http://localhost:8080`.
     "name": "12th Gen Intel Core i5-12400",
     "type": "Cpu",
     "sensors": [
-      { "id": "/intelcpu/0/temperature/0", "name": "Core (Tctl/Tdie)", "type": "Temperature", "value": 45.0, "min": 40.0, "max": 100.0, "index": 0 }
+      { "id": "/intelcpu/0/temperature/0", "name": "Core (Tctl/Tdie)", "type": "Temperature", "value": 45.0, "unit": "°C", "min": 40.0, "max": 100.0, "index": 0 }
     ],
     "subHardware": []
   }
 ]
 ```
 
+> Catatan: `unit` adalah satuan nilai sensor yang diturunkan dari tipe sensor (mis. `°C`, `%`, `RPM`, `W`). Nilai `min`/`max` adalah minimum/maksimum kumulatif sejak aplikasi berjalan (bukan per-request). Sensor yang bernilai `NaN`/`Infinity` diserialisasi sebagai `null`.
+
 ## Struktur Proyek
 
 ```
 rakawatch/
-├── Program.cs                    → bootstrap ASP.NET Core + konfigurasi Kestrel
+├── Program.cs                    → bootstrap ASP.NET Core + konfigurasi Kestrel + auth token + logging
 ├── AdminGuard.cs                 → check hak Administrator + notifikasi
 ├── Controllers/
 │   └── HardwareController.cs     → endpoint API
 ├── Services/
-│   └── HardwareMonitorService.cs → wrapper singleton Computer (LibreHardwareMonitor)
+│   ├── HardwareMonitorService.cs → wrapper singleton Computer (LibreHardwareMonitor)
+│   └── HardwareSamplerService.cs → background service sampling periodik
 └── Models/
     └── HardwareDtos.cs           → DTO record
 ```

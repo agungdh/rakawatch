@@ -1,4 +1,5 @@
 using LibreHardwareMonitor.Hardware;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Rakawatch.Models;
 using Rakawatch.Services;
@@ -25,49 +26,54 @@ public sealed class HardwareController(HardwareMonitorService monitor) : Control
         };
 
     [HttpGet("/")]
+    [ProducesResponseType<StatusDto>(StatusCodes.Status200OK)]
     public IActionResult GetStatus()
     {
         var snapshot = monitor.GetSnapshot();
 
-        var status = new
-        {
-            app = "Rakawatch",
-            version = typeof(Program).Assembly.GetName().Version?.ToString() ?? "0.0.0",
-            timestamp = DateTimeOffset.UtcNow,
-            endpoints = new[] { "/", "/api/hardware", "/api/hardware/{type}", "/api/hardware/{type}/{name}" },
-            hardware = snapshot.GroupBy(h => h.Type).ToDictionary(g => g.Key, g => g.Count())
-        };
+        var status = new StatusDto(
+            "Rakawatch",
+            typeof(Program).Assembly.GetName().Version?.ToString() ?? "0.0.0",
+            DateTimeOffset.UtcNow,
+            new[] { "/", "/api/hardware", "/api/hardware/{type}", "/api/hardware/{type}/{name}" },
+            snapshot.GroupBy(h => h.Type).ToDictionary(g => g.Key, g => g.Count()));
 
         return Ok(status);
     }
 
     [HttpGet]
+    [ProducesResponseType<IReadOnlyList<HardwareDto>>(StatusCodes.Status200OK)]
     public IActionResult GetAll() => Ok(monitor.GetSnapshot());
 
     [HttpGet("{type}")]
+    [ProducesResponseType<IReadOnlyList<HardwareDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ErrorDto>(StatusCodes.Status400BadRequest)]
     public IActionResult GetByType(string type)
     {
         var types = ResolveType(type);
         if (types is null)
-            return BadRequest(new { error = $"Unknown hardware type '{type}'." });
+            return BadRequest(new ErrorDto($"Unknown hardware type '{type}'."));
 
         var result = types.SelectMany(t => monitor.GetByType(t)).ToList();
         return Ok(result);
     }
 
     [HttpGet("{type}/{name}")]
+    [ProducesResponseType<HardwareDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ErrorDto>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ErrorDto>(StatusCodes.Status404NotFound)]
     public IActionResult GetByName(string type, string name)
     {
         var types = ResolveType(type);
         if (types is null)
-            return BadRequest(new { error = $"Unknown hardware type '{type}'." });
+            return BadRequest(new ErrorDto($"Unknown hardware type '{type}'."));
 
         var hardware = types
             .Select(t => monitor.GetByName(t, name))
             .FirstOrDefault(h => h is not null);
 
         return hardware is null
-            ? NotFound(new { error = $"Hardware '{name}' of type '{type}' not found." })
+            ? NotFound(new ErrorDto($"Hardware '{name}' of type '{type}' not found."))
             : Ok(hardware);
     }
 
@@ -77,6 +83,8 @@ public sealed class HardwareController(HardwareMonitorService monitor) : Control
             return mapped;
 
         return Enum.TryParse<HardwareType>(type, ignoreCase: true, out var parsed)
+            && !type.All(char.IsDigit)
+            && Enum.IsDefined(parsed)
             ? [parsed]
             : null;
     }

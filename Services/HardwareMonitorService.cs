@@ -45,9 +45,10 @@ public sealed class HardwareMonitorService : IDisposable
     private IEnumerable<IHardware> UpdateAll()
     {
         foreach (var hardware in _computer.Hardware)
+        {
             Update(hardware);
-
-        return _computer.Hardware;
+            yield return hardware;
+        }
     }
 
     private static void Update(IHardware hardware)
@@ -70,9 +71,36 @@ public sealed class HardwareMonitorService : IDisposable
         sensor.Name,
         sensor.SensorType.ToString(),
         Finite(sensor.Value),
+        MapUnit(sensor.SensorType),
         Finite(sensor.Min),
         Finite(sensor.Max),
         sensor.Index);
+
+    private static string MapUnit(SensorType type) => type switch
+    {
+        SensorType.Voltage => "V",
+        SensorType.Current => "A",
+        SensorType.Power => "W",
+        SensorType.Clock => "MHz",
+        SensorType.Temperature => "°C",
+        SensorType.Load => "%",
+        SensorType.Frequency => "Hz",
+        SensorType.Fan => "RPM",
+        SensorType.Flow => "L/h",
+        SensorType.Control => "%",
+        SensorType.Level => "%",
+        SensorType.Factor => "Ratio",
+        SensorType.Data => "GB",
+        SensorType.SmallData => "MB",
+        SensorType.Throughput => "B/s",
+        SensorType.TimeSpan => "s",
+        SensorType.Timing => "s",
+        SensorType.Energy => "Wh",
+        SensorType.Noise => "dBA",
+        SensorType.Conductivity => "µS/cm",
+        SensorType.Humidity => "%",
+        _ => string.Empty
+    };
 
     private static float? Finite(float? value) =>
         value is { } v && float.IsFinite(v) ? v : null;

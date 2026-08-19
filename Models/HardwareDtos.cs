@@ -5,6 +5,7 @@ public sealed record SensorDto(
     string Name,
     string Type,
     float? Value,
+    string Unit,
     float? Min,
     float? Max,
     int Index);
@@ -15,3 +16,12 @@ public sealed record HardwareDto(
     string Type,
     IReadOnlyList<SensorDto> Sensors,
     IReadOnlyList<HardwareDto> SubHardware);
+
+public sealed record ErrorDto(string Error);
+
+public sealed record StatusDto(
+    string App,
+    string Version,
+    DateTimeOffset Timestamp,
+    IReadOnlyList<string> Endpoints,
+    IReadOnlyDictionary<string, int> Hardware);
