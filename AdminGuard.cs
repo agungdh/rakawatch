@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 
@@ -27,11 +28,24 @@ internal static class AdminGuard
             return;
 
         var args = Environment.GetCommandLineArgs();
-        var parameters = args.Length > 1
+        var trailingArgs = args.Length > 1
             ? string.Join(" ", args.Skip(1).Select(Quote))
             : string.Empty;
 
-        var result = ShellExecuteW(IntPtr.Zero, "runas", args[0], parameters, Environment.CurrentDirectory, SW_SHOW);
+        var processPath = Environment.ProcessPath;
+        if (processPath is null)
+            return;
+
+        var isDotnet = string.Equals(
+            Path.GetFileNameWithoutExtension(processPath),
+            "dotnet",
+            StringComparison.OrdinalIgnoreCase);
+
+        var parameters = isDotnet
+            ? $"\"{Assembly.GetEntryAssembly()?.Location}\" {trailingArgs}".Trim()
+            : trailingArgs;
+
+        var result = ShellExecuteW(IntPtr.Zero, "runas", processPath, parameters, Environment.CurrentDirectory, SW_SHOW);
 
         if (result.ToInt64() <= 32)
         {
